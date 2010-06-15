@@ -28,7 +28,7 @@ exports.Scope: class Scope
     else
       Scope.root: this
       @temp_var: '_a'
-	@id: Scope.id++	 
+    @id: Scope.id++     
     Mug.scopes.push(this) 
 
   # Look up a variable name in lexical scope, and declare it if it does not

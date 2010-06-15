@@ -1,0 +1,55 @@
+<project default="build">
+	<taskdef resource="net/sf/antcontrib/antcontrib.properties" />
+	<target name="clean">
+		<delete dir="build" />
+	</target>
+
+	<target name="build" depends="clean">
+		<delete dir="build" />
+		<mkdir dir="build" />
+
+		<copy todir="build">
+			<fileset dir="src">
+				<include name="*.js" />
+			</fileset>
+		</copy>
+
+		<foreach param="path" target="compile-file">
+			<path>
+				<fileset dir="src">
+					<include name="*.coffee" />
+				</fileset>
+			</path>
+		</foreach>
+
+		<concat destfile="build/mug.js" fixlastline="yes">
+			<filelist dir="build"
+				files="mug-compiler.js helpers.js rewriter.js lexer.js parser.js scope.js nodes.js coffee-script.js" />
+		</concat>
+
+		<mkdir dir="gen" />
+		<java jar="lib/compiler.jar" fork="true">
+			<arg value="--js" />
+			<arg value="build/mug.js" />
+			<arg value="--js_output_file" />
+			<arg value="gen/mug.js" />
+		</java>
+	</target>
+
+	<target name="compile-file">
+		<propertyregex property="srcfile" input="${path}"
+			regexp=".*?([a-zA-Z]+\.coffee)$" replace="\1" />
+		<propertyregex property="outfile" input="${path}"
+			regexp=".*?([a-zA-Z]+)\.coffee$" replace="\1.js" />
+		<echo message="Compiling ${srcfile} to ${outfile}" />
+		<java jar="lib/jcoffeescript-0.6.2.jar" fork="true" input="${path}"
+			output="build/${outfile}" errorproperty="err" />
+		<if>
+			<length string="${err}" when="greater" length="0" />
+			<then>
+				<echo message="Error while compiling: ${err}" />
+				<fail />
+			</then>
+		</if>
+	</target>
+</project>

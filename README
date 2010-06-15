@@ -1,3 +1,18 @@
-Mug: Coffeescript -> Java Compiler
+c[_] Mug: (coffeescript) -> java
 
-Coming soon.
+Mug statically compiles CoffeeScript into a single Java source file.
+
+It's very much in its early stages, but you can have fun messing around
+with lambdas, classes, and prototypical inheritance.
+
+Instructions:
+  Include 'mug.js'. Call Mug.compile(source) to get back compiled source.
+  Sip, enjoy.
+
+Notes:
+  * print() and nanoTime() are currently the only built-in functions.
+  * Source is compiled to a single source file with a run() command and a
+    static main().
+  * Originally called "Caffeine", but that name's too badass for an academic
+    exercise.
+  * Rhino can still crush a coffee mug.
