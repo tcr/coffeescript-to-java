@@ -203,8 +203,9 @@ exports.Expressions: class Expressions extends BaseNode
   # declarations of all inner variables pushed up to the top.
   compile_with_declarations: (o) ->
     code: @compile_node(o)
-    code: "${@tab}var ${o.scope.compiled_assignments()};\n$code"  if o.scope.has_assignments(this)
-    code: "${@tab}var ${o.scope.compiled_declarations()};\n$code" if o.scope.has_declarations(this)
+	code: "${@tab}CSObject _tmp = null; CSPrimitive _tmp0 = null, _tmp1 = null;\n${@tab}s${o.scope.id}.clean();\n" + code;
+    #code: "${@tab}var ${o.scope.compiled_assignments()};\n$code"  if o.scope.has_assignments(this)
+    #code: "${@tab}var ${o.scope.compiled_declarations()};\n$code" if o.scope.has_declarations(this)
     code
 
   # Compiles a single expression within the expressions body. If we need to
@@ -333,6 +334,24 @@ exports.ValueNode: class ValueNode extends BaseNode
     baseline:     @base.compile o
     baseline:     "($baseline)" if @base instanceof ObjectNode and @has_properties()
     complete:     @last: baseline
+	
+	if complete == 'this'
+	  complete = 'ths'
+	else if complete == 'null'
+	  complete = 'null'
+	else if complete.match(/^[a-zA-Z_$][a-zA-Z_$0-9]*$/) and !o.raw and (!o.scope.is_param or !o.scope.is_param[complete])
+	  s: o.scope
+	  while s and !s.variables[complete]
+	    s: s.parent
+	    if !s
+	      o.scope.find complete
+	      s: o.scope
+	  complete: "s${s.id}.get_${complete}()"
+	else if complete.match(/^([0-9]|\.)/)
+      JavaCS.numbers[complete]: true
+	  complete: "_${complete}";
+	else if complete.match(/^["']/)
+      complete: "new CSString(${complete})"
 
     for prop, i in props
       @source: baseline
@@ -342,6 +361,10 @@ exports.ValueNode: class ValueNode extends BaseNode
           complete: "(${ baseline: temp } = ($complete))"
         complete: "typeof $complete === \"undefined\" || $baseline" if i is 0 and @is_start(o)
         complete: + @SOAK + (baseline: + prop.compile(o))
+	  else if prop instanceof AccessorNode
+	    o.complete: complete
+		part: prop.compile o
+		complete: part
       else
         part: prop.compile(o)
         baseline: + part
@@ -394,7 +417,7 @@ exports.CallNode: class CallNode extends BaseNode
     this
 
   prefix: ->
-    if @is_new then 'new ' else ''
+    if @is_new then 'new CSObject()' else 'null'
 
   # Grab the reference to the superclass' implementation of the current method.
   super_reference: (o) ->
@@ -411,9 +434,13 @@ exports.CallNode: class CallNode extends BaseNode
     for arg in @args when arg instanceof SplatNode
       compilation: @compile_splat(o)
     unless compilation
-      args: (arg.compile(o) for arg in @args).join(', ')
-      compilation: if @is_super then @compile_super(args, o)
-      else "${@prefix()}${@variable.compile(o)}($args)"
+      args: (for i in [0...4]
+	    @args[i]?.compile(o) or 'null').join(', ')
+      if @is_new
+        compilation: if @is_super then @compile_super(args, o) else "((CSFunction) ${@variable.compile(o)}).instantiate($args)"
+	  else
+	    o.save_base_tmp: true
+		compilation: if @is_super then @compile_super(args, o) else "((CSFunction) ${@variable.compile(o)}).invoke((CSObject) _tmp, $args)"
     if o.operation and @wrapped then "($compilation)" else compilation
 
   # `super()` is converted into a call against the superclass's implementation
@@ -493,6 +520,18 @@ exports.AccessorNode: class AccessorNode extends BaseNode
     o.chain_root.wrapped: or @soak_node
     proto_part: if @prototype then 'prototype.' else ''
     ".$proto_part${@name.compile(o)}"
+    Mug.props[this.name.value]: true
+	val: o.complete
+	if @prototype
+	  val: "((CSObject) $val).get_prototype()"
+	o.raw: true
+	val: "(CSObject) $val"
+	if o.save_base_tmp
+	  val: "_tmp = $val"
+	del(o, 'save_base_tmp')
+	val: "($val).get_${@name.compile(o)}()"
+	del(o, 'raw')
+	return val
 
 children AccessorNode, 'name'
 
@@ -529,7 +568,7 @@ exports.RangeNode: class RangeNode extends BaseNode
     @tab: o.indent
     [@from_var, @to_var]: [o.scope.free_variable(), o.scope.free_variable()]
     [from, to]:           [@from.compile(o), @to.compile(o)]
-    "$@from_var = $from; $@to_var = $to;\n$@tab"
+    "double $@from_var = asNumber($from); $@to_var = asNumber($to);\n$@tab"
 
   # When compiled normally, the range returns the contents of the *for loop*
   # needed to iterate over the values in the range. Used by comprehensions.
@@ -538,11 +577,11 @@ exports.RangeNode: class RangeNode extends BaseNode
     idx:      del o, 'index'
     step:     del o, 'step'
     vars:     "$idx = $@from_var"
-    step:     if step then step.compile(o) else '1'
+    step:     if step then step.compile(o).replace(/^_([0-9].*)$/, "\$1") else '1'
     equals:   if @exclusive then '' else '='
     intro:    "($@from_var <= $@to_var ? $idx"
     compare:  "$intro <$equals $@to_var : $idx >$equals $@to_var)"
-    incr:     "$intro += $step : $idx -= $step)"
+    incr:     "$idx += (${@from_var} <= ${@to_var} ? $step : -($step))"
     "$vars; $compare; $incr"
 
   # When used as a value, expand the range into the equivalent array. In the
@@ -639,6 +678,8 @@ children ArrayNode, 'objects'
 # The CoffeeScript class definition.
 exports.ClassNode: class ClassNode extends BaseNode
 
+  @id: 0
+
   # Initialize a **ClassNode** with its name, an optional superclass, and a
   # list of prototype property assignments.
   constructor: (variable, parent, props) ->
@@ -646,6 +687,8 @@ exports.ClassNode: class ClassNode extends BaseNode
     @parent: parent
     @properties: props or []
     @returns:  false
+	@id: ClassNode.id++
+	Mug.classes.push(this)
 
   make_return: ->
     @returns: true
@@ -663,7 +706,7 @@ exports.ClassNode: class ClassNode extends BaseNode
     for prop in @properties
       [pvar, func]: [prop.variable, prop.value]
       if pvar and pvar.base.value is 'constructor' and func instanceof CodeNode
-        func.body.push(new ReturnNode(literal('this')))
+        func.body.push(new ReturnNode(literal('ths')))
         constructor: new AssignNode(@variable, func)
       else
         if pvar
@@ -676,12 +719,14 @@ exports.ClassNode: class ClassNode extends BaseNode
       if @parent
         applied: new ValueNode(@parent, [new AccessorNode(literal('apply'))])
         constructor: new AssignNode(@variable, new CodeNode([], new Expressions([
-          new CallNode(applied, [literal('this'), literal('arguments')])
+          new CallNode(applied, [literal('ths'), literal('arguments')])
         ])))
       else
         constructor: new AssignNode(@variable, new CodeNode())
 
+    o.constructor_for: this
     construct:                       @idt() + constructor.compile(o) + ';\n'
+	del(o, 'constructor_for')
     props:     if props.empty() then '' else props.compile(o) + '\n'
     extension: if extension     then @idt() + extension.compile(o) + ';\n' else ''
     returns:   if @returns      then new ReturnNode(@variable).compile(o)  else ''
@@ -735,8 +780,8 @@ exports.AssignNode: class AssignNode extends BaseNode
       @value.proto: proto if proto
     val: @value.compile o
     return "$name: $val" if @context is 'object'
-    o.scope.find name unless @is_value() and @variable.has_properties()
-    val: "$name = $val"
+    o.scope.find(this.variable.base.compile(0)) unless @is_value() and @variable.has_properties()
+    val: name.replace(/get_([a-zA-Z0-9_$]+)\(\)$/, 'set_\$1(') + "$val)"
     return "$@tab$val;" if stmt
     if top then val else "($val)"
 
@@ -834,8 +879,16 @@ exports.CodeNode: class CodeNode extends BaseNode
     params: (param.compile(o) for param in params)
     @body.make_return()
     (o.scope.parameter(param)) for param in params
-    code: if @body.expressions.length then "\n${ @body.compile_with_declarations(o) }\n" else ''
-    func: "function(${ params.join(', ') }) {$code${@idt(if @bound then 1 else 0)}}"
+	o.scope.is_param: {}
+	for i in [0...4]
+	  o.scope.is_param[params[i]]: true if params[i]
+	  params[i]: 'CSPrimitive' + (params[i] || "l$i")
+	code: if @body.expressions.length then "\n${ @body.compile_with_declarations(o) }\n" else ''
+    func: 'new CSFunction() {\n'
+	if o.constructor_for
+	  func += "public CSObject createProto() { return new CSObject_${o.constructor_for.id}(); }\n"
+	  func += "public CSObject createNew() { return new CSObject_${o.constructor_for.id}(actual_prototype); }\n"
+	func += "public CSPrimitive invoke(final CSObject ths, ${ params.join(', ') }) throws Exception {$code${@idt(if @bound then 1 else 0)}\n${@idt(1)}}"
     func: "($func)" if top and not @bound
     return func unless @bound
     utility 'slice'
@@ -969,8 +1022,19 @@ exports.OpNode: class OpNode extends BaseNode
 
   # The map of conversions from CoffeeScript to JavaScript symbols.
   CONVERSIONS: {
-    '==': '==='
-    '!=': '!=='
+    '==': '(new CSBoolean((_tmp0 = $a) == null ? $b == null : _tmp0.equals($b)))'
+	'!=': '(new CSBoolean((_tmp0 = $a) == null ? $b != null : !_tmp0.equals($b)))'
+    '+': '((_tmp0 = $a) instanceof CSString ? new CSString(asString(_tmp0) + asString($b)) : ((_tmp1 = $b) instanceof CSString ? new CSString(asString(_tmp0) + asString(_tmp1)) : new CSNumber(asNumber(_tmp0) + asNumber(_tmp1))))'
+    '-': '(new CSNumber(asNumber($a) - asNumber($b)))'
+    '*': '(new CSNumber(asNumber($a) * asNumber($b)))'
+    '/': '(new CSNumber(asNumber($a) / asNumber($b)))'
+    '<<': '(new CSNumber((int) asNumber($a) << (int) asNumber($b)))'
+    '<': '(asNumber($a) < asNumber($b) ? CSBoolean.TRUE : CSBoolean.FALSE)'
+    '>': '(asNumber($a) > asNumber($b) ? CSBoolean.TRUE : CSBoolean.FALSE)'
+  }
+ 
+  UNARY_CONVERSIONS: {
+    '-': '(new CSNumber(-asNumber($a)))'
   }
 
   # The list of operators for which we perform
@@ -987,7 +1051,7 @@ exports.OpNode: class OpNode extends BaseNode
     @constructor.name: + ' ' + operator
     @first: first
     @second: second
-    @operator: @CONVERSIONS[operator] or operator
+    @operator: (if second then @CONVERSIONS[operator] else @UNARY_CONVERSIONS[operator]) or operator;
     @flip: !!flip
 
   is_unary: ->
@@ -1000,8 +1064,10 @@ exports.OpNode: class OpNode extends BaseNode
     o.operation: true
     return @compile_chain(o)      if @is_chainable() and @first.unwrap() instanceof OpNode and @first.unwrap().is_chainable()
     return @compile_assignment(o) if index_of(@ASSIGNMENT, @operator) >= 0
+    return @operator.replace(/\$a/g, @first.compile(o)) if @is_unary() and @operator.match /\$a/
     return @compile_unary(o)      if @is_unary()
     return @compile_existence(o)  if @operator is '?'
+	return @operator.replace(/\$a/g, @first.compile(o)).replace(/\$b/g, @second.compile(o)) if @operator.match(/\$[ab]/)
     [@first.compile(o), @operator, @second.compile(o)].join ' '
 
   # Mimic Python's chained comparisons when multiple comparison operators are
@@ -1197,7 +1263,8 @@ exports.ForNode: class ForNode extends BaseNode
     body:           Expressions.wrap([@body])
     if range
       source_part:  source.compile_variables o
-      for_part:     source.compile merge o, {index: ivar, step: @step}
+	  var_part +=   @idt(1) + "s${o.scope.level}.set_$name(new CSNumber($name}));\n"
+      for_part:     'double ' + source.compile merge o, {index: ivar, step: @step}
     else
       svar:         scope.free_variable()
       source_part:  "$svar = ${ @source.compile(o) };\n$@tab"
@@ -1313,7 +1380,7 @@ exports.IfNode: class IfNode extends BaseNode
     com_dent:     if child then @idt() else ''
     prefix:       if @comment then "${ @comment.compile(cond_o) }\n$com_dent" else ''
     body:         @body.compile(o)
-    if_part:      "$prefix${if_dent}if (${ @compile_condition(cond_o) }) {\n$body\n$@tab}"
+    if_part:      "$prefix${if_dent}if (asBoolean(${ @compile_condition(cond_o) })) {\n$body\n$@tab}"
     return if_part unless @else_body
     else_part: if @is_chain
       ' else ' + @else_body_node().compile(merge(o, {indent: @idt(), chain_child: true}))
@@ -1323,7 +1390,8 @@ exports.IfNode: class IfNode extends BaseNode
 
   # Compile the IfNode as a ternary operator.
   compile_ternary: (o) ->
-    if_part:    @condition.compile(o) + ' ? ' + @body_node().compile(o)
+    if not @else_body return @compile_statement(o)
+    if_part:    "asBoolean(${@condition.compile(o)} ? " + @body_node().compile(o)
     else_part:  if @else_body then @else_body_node().compile(o) else 'null'
     "$if_part : $else_part"
 

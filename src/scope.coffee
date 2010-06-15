@@ -12,6 +12,9 @@ exports.Scope: class Scope
 
   # The top-level **Scope** object.
   @root: null
+  
+  # Unique scope "id"
+  @id: 0
 
   # Initialize a scope with its parent, for lookups up the chain,
   # as well as a reference to the **Expressions** node is belongs to, which is
@@ -25,6 +28,8 @@ exports.Scope: class Scope
     else
       Scope.root: this
       @temp_var: '_a'
+	@id: Scope.id++	 
+    Mug.scopes.push(this) 
 
   # Look up a variable name in lexical scope, and declare it if it does not
   # already exist.
@@ -84,7 +89,7 @@ exports.Scope: class Scope
 
   # Compile the JavaScript for all of the variable declarations in this scope.
   compiled_declarations: ->
-    @declared_variables().join ', '
+    @declared_variables().join(' = null, ') + ' = null'
 
   # Compile the JavaScript for all of the variable assignments in this scope.
   compiled_assignments: ->
