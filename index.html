@@ -1,9 +1,26 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
-	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!DOCTYPE html>
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	
+	<script src="mug.js"></script>
+	<script>
+function load_binary_tree() {
+document.getElementById('input').value = "# The Great Computer Language Shootout\n# http://shootout.alioth.debian.org/\n# contributed by Isaac Gouy\n   \nclass TreeNode\n\tleft: null\n\tright: null\n\titem: null\n\n\tconstructor: (left, right, item) ->\n\t\t@left: left\n\t\t@right: right\n\t\t@item: item\n\t\n\titemCheck: ->\n\t\tif @left == null\n\t\t\treturn @item\n\t\treturn @item + @left.itemCheck() - @right.itemCheck();\n\t\t\nbottomUpTree: (item, depth) ->\n\tif depth > 0\n\t\treturn new TreeNode(bottomUpTree(2*item-1, depth-1), bottomUpTree(2*item, depth-1), item)\n\treturn new TreeNode(null, null, item)\n\nminDepth: 4\nmaxDepth: 16\nstretchDepth: maxDepth + 1\n\ncheck: bottomUpTree(0, stretchDepth).itemCheck()\nprint \"stretch tree of depth \" + stretchDepth + \"\\t check: \" + check\n\nlongLivedTree: bottomUpTree(0, maxDepth)\nfor depth in [minDepth..maxDepth] by 2\n\titerations: 1 << (maxDepth - depth + minDepth)\n\t\n\tcheck: 0\n\tfor i in [1..iterations]\n\t\tcheck = check + bottomUpTree(i, depth).itemCheck()\n\t\tcheck = check + bottomUpTree(-i, depth).itemCheck()\n\t\n\tprint iterations*2 + \"\\t trees of depth \" + depth + \"\\t check: \" + check;\n\nprint \"long lived tree of depth \" + maxDepth + \"\\t check: \" + longLivedTree.itemCheck()";
+}
+
+function load_chain() {
+document.getElementById('input').value = "class Person\n\tcount: 0\n\tprev: null\n\tnext: null\n\n\tconstructor: (count) ->\n\t\t@count: count \n\n\tshout: (shout, deadif) ->\n\t\tif (shout < deadif)\n\t\t\treturn (shout + 1)\n\t\t@prev.next = @next\n\t\t@next.prev = @prev\n\t\treturn 1\n\nclass Chain\n\tfirst: null\n\t\n\tconstructor: (size) ->\n\t\tlast: null\n\t\tcurrent: null\n\t\tfor i in [0...size]\n\t\t\tcurrent: new Person(i)\n\t\t\tif this.first == null\n\t\t\t\tthis.first = current\n\t\t\tif last != null\n\t\t\t\tlast.next = current\n\t\t\t\tcurrent.prev = last\n\t\t\tlast: current\n\t\t@first.prev: last\n\t\tlast.next: @first\n\t\t\n\tkill: (nth) ->\n\t\tcurrent: @first\n\t\tshout: 1\n\t\twhile current.next != current\n\t\t\tshout: current.shout(shout, nth)\n\t\t\tcurrent: current.next\n\t\t@first: current\n\t\treturn current\n\nprint \"Starting.\"\nstart: nanoTime()\n\nITER: 500000\nfor i in [0...ITER]\n\tchain: new Chain(40)\n\tchain.kill(3)\n\nprint \"Ended.\"\nend: nanoTime()\nprint \"Time per iteration = \" + ((end - start) / ITER) + \" nanoseconds.\"";
+}
+function load_hello_world() {
+document.getElementById('input').value = 'print "Sup, world"';
+}
+function getInput() { return document.getElementById('input').value; }
+function setInput(v) { return document.getElementById('input').value = v; }
+function getOutput() { return document.getElementById('output').value; }
+function setOutput(v) { return document.getElementById('output').value = "// Mug Generated Source " + new Date() + "\n\n" + v; }
+</script>
 
 	<title>timcameronryan/Mug @ GitHub</title>
 	
@@ -11,20 +28,22 @@
 		body {
   		margin-top: 1.0em;
   		background-color: #11a04e;
-		  font-family: "Helvetica,Arial,FreeSans";
+		  font-family: Tahoma,Arial,FreeSans;
   		color: #ffffff;
     }
     #container {
       margin: 0 auto;
       width: 700px;
     }
-		h1 { font-size: 3.8em; color: #ee5fb1; margin-bottom: 3px; }
-		h1 .small { font-size: 0.4em; }
+	
+	input.button { padding: 0.25em 1em; }
+		h1 { font-size: 3.8em; color: #dc6; margin-bottom: 3px; font-weight: normal }
+		h1 .small { font-size: 0.7em; }
 		h1 a { text-decoration: none }
-		h2 { font-size: 1.5em; color: #ee5fb1; }
-    h3 { text-align: center; color: #ee5fb1; }
-    a { color: #ee5fb1; }
-    .description { font-size: 1.2em; margin-bottom: 30px; margin-top: 30px; font-style: italic;}
+		h2 { font-size: 1.5em; color: #dc6; }
+    h3 { text-align: center; color: #dc6; }
+    a { color: #dc6; }
+    .description { font-size: 1.2em; margin-bottom: 30px; font-style: italic;}
     .download { float: right; }
 		pre { background: #000; color: #fff; padding: 15px;}
     hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
@@ -37,23 +56,29 @@
   <a href="http://github.com/timcameronryan/Mug"><img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
 
   <div id="container">
+    <h1><a href="http://github.com/timcameronryan/Mug">c[_] Mug
+      <span class="small">(coffee) -> java</span></a></h1>
+	  
+	  <p>A static compiler from <a href="http://coffeescript.com/">Coffeescript</a> to Java source code, with no dependencies. Most usable features aren't implemented. Tons of bugs. But have fun with simple prototypical contortions. :)</p> 
 
-    <div class="download">
-      <a href="http://github.com/timcameronryan/Mug/zipball/master">
-        <img border="0" width="90" src="http://github.com/images/modules/download/zip.png"></a>
-      <a href="http://github.com/timcameronryan/Mug/tarball/master">
-        <img border="0" width="90" src="http://github.com/images/modules/download/tar.png"></a>
-    </div>
+    <h2>Demo</h2>
+<p><strong>Get started!</strong> Load a script and hit compile:
+<input type="button" value="Hello World" onclick="load_hello_world()" class="button">
+<input type="button" value="Josephus Problem" onclick="load_chain()" class="button">
+<input type="button" value="Binary Trees" onclick="load_binary_tree()" class="button"></p> 
 
-    <h1><a href="http://github.com/timcameronryan/Mug">Mug</a>
-      <span class="small">by <a href="http://github.com/timcameronryan">timcameronryan</a></span></h1>
-
-    <div class="description">
-      A CoffeeScript-to-Java Compiler
-    </div>
+<strong>Input:</strong>
+<textarea id="input" rows="16" wrap="off" style="width: 100%"># Type in a coffeescript file into here and hit "compile"
+# or load a benchmark script using the buttons above
+ 
+print "Sup, world"</textarea>
+<p style="text-align: center">
+<input type="button" value="Compile" onclick="setOutput(Mug.compile(getInput()))" style="padding: 0.25em 4em"> to "mug.Script" (mug/Script.java)</p>
+<strong>Output:</strong>
+<textarea id="output" rows="16" wrap="off" style="width: 100%; background: #ddd" readonly="true"></textarea> 
 
     <h2>Contact</h2>
-<p>Tim Cameron Ryan (dev@tim-ryan.com)<br/>      </p>
+<p>Tim Cameron Ryan (dev@tim-ryan.com)</p>
 
 
     <h2>Download</h2>
@@ -72,7 +97,5 @@
     </div>
 
   </div>
-
-  
 </body>
 </html>
