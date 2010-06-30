@@ -1,0 +1,1 @@
+java -cp c:\languages\clojure\1.1\clojure.jar;asm-3.3.jar clojure.main
